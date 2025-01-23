@@ -91,4 +91,8 @@ main {
   pointer-events: none; /* so clicks pass through */
   transition: opacity 1s ease-out;
 }
+.japan-theme {
+  background: #efefe8;
+  color: #a43820; /* A red accent reminiscent of Japan's flag */
+}
 
