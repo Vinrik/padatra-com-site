@@ -1,674 +1,260 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Vichess Extended – Dark Blue Edition (No In‑Board Particles) with Color Options</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Journey of Steps: Evolving Fractal Web & Particle Trails</title>
   <style>
-    /* Remove default margins and ensure a full‑screen background */
+    /* Basic reset and full-screen setup */
     html, body {
       margin: 0;
       padding: 0;
-      height: 100%;
-      background: none;
-      font-family: Arial, sans-serif;
+      overflow: hidden;
+      background-color: #101010;
+      font-family: sans-serif;
       color: #fff;
-      text-align: center;
     }
-    /* Full‑screen background canvas */
-    #bgCanvas {
-      position: fixed;
-      top: 0;
-      left: 0;
-      z-index: -2;
-    }
-    /* Full‑screen particle canvas – behind the board */
-    #particlesCanvas {
-      position: fixed;
-      top: 0;
-      left: 0;
-      z-index: -1;
-      pointer-events: none;
-    }
-    /* Container that centers the board (512×512) */
-    #boardContainer {
-      position: relative;
-      width: 512px;
-      height: 512px;
-      margin: 20px auto;
-      z-index: 2;
-      box-shadow: 0 0 20px rgba(0,0,0,0.5);
-    }
-    /* The chessboard canvas inside the container */
-    #chessBoard {
+    /* Two canvases layered on top of each other */
+    canvas {
       position: absolute;
       top: 0;
       left: 0;
+      width: 100%;
+      height: 100%;
     }
-    h1 {
-      font-size: 32px;
-      font-weight: bold;
-      margin-top: 20px;
+    #particleCanvas {
+      z-index: 1;
     }
-    #info {
-      font-size: 28px;
-      font-weight: bold;
-      margin-top: 10px;
+    #webCanvas {
+      z-index: 2;
+      pointer-events: none;
     }
-    /* New color options UI */
-    #colorOptions {
-      margin: 10px auto;
+    /* Overlay content for journey steps */
+    #content {
+      position: absolute;
+      z-index: 3;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 20px 30px;
+      border-radius: 10px;
+      max-width: 80%;
     }
-    #colorOptions button {
-      font-size: 16px;
-      padding: 6px 12px;
-      margin: 0 5px;
+    #content h1 {
+      margin: 0 0 10px;
+      font-size: 2em;
+    }
+    #content p {
+      margin: 0 0 20px;
+      font-size: 1.2em;
+    }
+    #nextBtn {
+      padding: 10px 20px;
+      font-size: 1em;
       cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #1e90ff;
+      color: #fff;
+    }
+    #nextBtn:hover {
+      background-color: #3aa0ff;
     }
   </style>
 </head>
 <body>
-  <!-- Fullscreen Background Canvas -->
-  <canvas id="bgCanvas"></canvas>
-  <!-- Fullscreen Particle Canvas (behind board) -->
-  <canvas id="particlesCanvas"></canvas>
-  
-  <h1>Vichess Extended – Dark Blue Edition</h1>
-  
-  <!-- Color Options UI -->
-  <div id="colorOptions">
-    <button id="setDarkColor">Set Dark Square Color</button>
-    <input type="color" id="darkColorPicker" value="#003366" style="display: none;">
-    <button id="setLightColor">Set Light Square Color</button>
-    <input type="color" id="lightColorPicker" value="#D3D3D3" style="display: none;">
+  <!-- Canvas for particle trails -->
+  <canvas id="particleCanvas"></canvas>
+  <!-- Canvas for the fractal web -->
+  <canvas id="webCanvas"></canvas>
+  <!-- Overlay content for the journey steps -->
+  <div id="content">
+    <h1 id="stepTitle"></h1>
+    <p id="stepDescription"></p>
+    <button id="nextBtn">Next Step</button>
   </div>
-  
-  <!-- Board container: centers the 512×512 chess board -->
-  <div id="boardContainer">
-    <canvas id="chessBoard" width="512" height="512"></canvas>
-  </div>
-  <div id="info">Turn: <span id="turnIndicator">White</span></div>
-  
+
   <script>
-    /**************** Global Variables & Constants ****************/
-    const boardSize = 512,
-          squareSize = boardSize / 8;
-    const turnIndicator = document.getElementById("turnIndicator");
-    let moveCount = 0;  // Increases with each move (affects background hue)
+    /***********************
+     * Canvas Setup & Resize
+     ***********************/
+    const particleCanvas = document.getElementById('particleCanvas');
+    const particleCtx = particleCanvas.getContext('2d');
+    const webCanvas = document.getElementById('webCanvas');
+    const webCtx = webCanvas.getContext('2d');
 
-    // Board colors: (now defined as variables so they can be updated)
-    let lightSquare = "#D3D3D3";
-    let darkSquare  = "#003366";
+    function resizeCanvases() {
+      particleCanvas.width = window.innerWidth;
+      particleCanvas.height = window.innerHeight;
+      webCanvas.width = window.innerWidth;
+      webCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvases);
+    resizeCanvases();
 
-    // Use Unicode chess symbols (solid) for pieces.
-    const pieceSymbols = {
-      white: { K: "\u2654", Q: "\u2655", R: "\u2656", B: "\u2657", N: "\u2658", P: "\u2659" },
-      black: { K: "\u265A", Q: "\u265B", R: "\u265C", B: "\u265D", N: "\u265E", P: "\u265F" }
-    };
+    /***********************
+     * Step Configurations
+     ***********************/
+    // Each step has its own journey text and configuration parameters.
+    const steps = [
+      {
+        title: "Step 1: The Beginning",
+        description: "Embark on your journey. The fractal web and gentle particles mark the start of your path.",
+        fractal: { depth: 4, numPoints: 8, angleSpeed: 0.02, initialRadiusFactor: 0.45 },
+        particles: { speedMultiplier: 0.8, count: 60 }
+      },
+      {
+        title: "Step 2: The Journey",
+        description: "Progress along winding paths. The fractal web expands and particles pick up momentum.",
+        fractal: { depth: 5, numPoints: 8, angleSpeed: 0.01, initialRadiusFactor: 0.5 },
+        particles: { speedMultiplier: 1.0, count: 80 }
+      },
+      {
+        title: "Step 3: The Arrival",
+        description: "Arrive at your destination. The fractal web calms and particles drift softly, marking a serene end.",
+        fractal: { depth: 3, numPoints: 6, angleSpeed: 0.005, initialRadiusFactor: 0.4 },
+        particles: { speedMultiplier: 0.5, count: 40 }
+      }
+    ];
+    let currentStepIndex = 0;
+    let currentConfig = steps[currentStepIndex];
 
-    let board = [];         // 8×8 array holding piece objects (or null)
-    let currentTurn = "white";
-    let selectedSquare = null;  // For click‑selection of a piece
-    let enPassantSquare = null; // For en passant capture
+    // Update the overlay content based on the current step.
+    const stepTitleEl = document.getElementById('stepTitle');
+    const stepDescriptionEl = document.getElementById('stepDescription');
+    function updateStepContent() {
+      stepTitleEl.textContent = currentConfig.title;
+      stepDescriptionEl.textContent = currentConfig.description;
+    }
+    updateStepContent();
 
-    // Particle system: each particle is an object.
-    // For background particles, each object has { x, y, vx, vy, size, color, captured: false }.
-    // For captured–piece particles, captured is true and additional properties (like symbol) are provided.
+    // Handle "Next Step" button clicks.
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      currentStepIndex = (currentStepIndex + 1) % steps.length;
+      currentConfig = steps[currentStepIndex];
+      updateStepContent();
+      // Reinitialize particles with the new configuration.
+      initParticles();
+    });
+
+    /***********************
+     * Particle System (with Trails)
+     ***********************/
+    class Particle {
+      constructor(x, y, speedMultiplier) {
+        this.x = x;
+        this.y = y;
+        // Slow, gentle velocities based on the speed multiplier.
+        this.vx = (Math.random() - 0.5) * speedMultiplier;
+        this.vy = (Math.random() - 0.5) * speedMultiplier;
+        this.radius = Math.random() * 2 + 1;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        // Wrap around edges to keep particles always on screen.
+        if (this.x < 0) this.x += particleCanvas.width;
+        if (this.x > particleCanvas.width) this.x -= particleCanvas.width;
+        if (this.y < 0) this.y += particleCanvas.height;
+        if (this.y > particleCanvas.height) this.y -= particleCanvas.height;
+      }
+      draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+      }
+    }
+
     let particles = [];
-
-    /**************** Canvas Setup ****************/
-    // Background canvas (full screen)
-    const bgCanvas = document.getElementById("bgCanvas");
-    const bgCtx = bgCanvas.getContext("2d");
-    // Particle canvas (full screen)
-    const particlesCanvas = document.getElementById("particlesCanvas");
-    const particlesCtx = particlesCanvas.getContext("2d");
-    // Chessboard canvas (inside boardContainer)
-    const boardCanvas = document.getElementById("chessBoard");
-    const boardCtx = boardCanvas.getContext("2d");
-
-    // Resize background and particle canvases to full screen.
-    function resizeFullScreenCanvases() {
-      bgCanvas.width = window.innerWidth;
-      bgCanvas.height = window.innerHeight;
-      particlesCanvas.width = window.innerWidth;
-      particlesCanvas.height = window.innerHeight;
+    function initParticles() {
+      particles = [];
+      const count = currentConfig.particles.count;
+      for (let i = 0; i < count; i++) {
+        particles.push(new Particle(
+          Math.random() * particleCanvas.width,
+          Math.random() * particleCanvas.height,
+          currentConfig.particles.speedMultiplier
+        ));
+      }
     }
-    window.addEventListener("resize", resizeFullScreenCanvases);
-    resizeFullScreenCanvases();
+    initParticles();
 
-    /**************** Board Initialization ****************/
-    function initBoard() {
-      board = [];
-      for (let r = 0; r < 8; r++) {
-        board[r] = new Array(8).fill(null);
-      }
-      // Set Black pieces.
-      board[0][0] = { type: "R", color: "black", hasMoved: false };
-      board[0][1] = { type: "N", color: "black", hasMoved: false };
-      board[0][2] = { type: "B", color: "black", hasMoved: false };
-      board[0][3] = { type: "Q", color: "black", hasMoved: false };
-      board[0][4] = { type: "K", color: "black", hasMoved: false };
-      board[0][5] = { type: "B", color: "black", hasMoved: false };
-      board[0][6] = { type: "N", color: "black", hasMoved: false };
-      board[0][7] = { type: "R", color: "black", hasMoved: false };
-      for (let c = 0; c < 8; c++) {
-        board[1][c] = { type: "P", color: "black", hasMoved: false };
-      }
-      // Set White pieces.
-      board[7][0] = { type: "R", color: "white", hasMoved: false };
-      board[7][1] = { type: "N", color: "white", hasMoved: false };
-      board[7][2] = { type: "B", color: "white", hasMoved: false };
-      board[7][3] = { type: "Q", color: "white", hasMoved: false };
-      board[7][4] = { type: "K", color: "white", hasMoved: false };
-      board[7][5] = { type: "B", color: "white", hasMoved: false };
-      board[7][6] = { type: "N", color: "white", hasMoved: false };
-      board[7][7] = { type: "R", color: "white", hasMoved: false };
-      for (let c = 0; c < 8; c++) {
-        board[6][c] = { type: "P", color: "white", hasMoved: false };
-      }
-      enPassantSquare = null;
-      currentTurn = "white";
-      turnIndicator.textContent = "White";
-      selectedSquare = null;
-      moveCount = 0;
-    }
+    /***********************
+     * Fractal Web Drawing
+     ***********************/
+    /**
+     * Recursively draws an interweaving fractal web.
+     *
+     * @param {CanvasRenderingContext2D} ctx - The drawing context.
+     * @param {number} x - Center x-coordinate.
+     * @param {number} y - Center y-coordinate.
+     * @param {number} radius - Current radius.
+     * @param {number} depth - Recursion depth.
+     * @param {number} angleOffset - Rotation offset in radians.
+     */
+    function drawFractalWeb(ctx, x, y, radius, depth, angleOffset) {
+      if (depth <= 0 || radius < 2) return;
+      const numPoints = currentConfig.fractal.numPoints;
+      const points = [];
 
-    /**************** Board Rendering ****************/
-    function drawBoard() {
-      // Draw the 8×8 squares.
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          let isLight = (row + col) % 2 === 0;
-          boardCtx.fillStyle = isLight ? lightSquare : darkSquare;
-          boardCtx.fillRect(col * squareSize, row * squareSize, squareSize, squareSize);
+      // Compute points around a circle.
+      for (let i = 0; i < numPoints; i++) {
+        const angle = angleOffset + i * (2 * Math.PI / numPoints);
+        const px = x + radius * Math.cos(angle);
+        const py = y + radius * Math.sin(angle);
+        points.push({ x: px, y: py });
+      }
+
+      // Draw lines connecting every pair of points.
+      ctx.strokeStyle = `rgba(100, 180, 255, ${0.7 * depth / 4})`;
+      ctx.lineWidth = depth;
+      ctx.beginPath();
+      for (let i = 0; i < numPoints; i++) {
+        for (let j = i + 1; j < numPoints; j++) {
+          ctx.moveTo(points[i].x, points[i].y);
+          ctx.lineTo(points[j].x, points[j].y);
         }
       }
-      // Draw a white outline around the board.
-      boardCtx.strokeStyle = "#fff";
-      boardCtx.lineWidth = 3;
-      boardCtx.strokeRect(0, 0, boardSize, boardSize);
+      ctx.stroke();
 
-      // Draw pieces.
-      boardCtx.font = "bold 52px Arial";
-      boardCtx.textAlign = "center";
-      boardCtx.textBaseline = "middle";
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          let piece = board[row][col];
-          if (piece) {
-            let symbol = pieceSymbols[piece.color][piece.type];
-            boardCtx.fillStyle = (piece.color === "white") ? "#fff" : "#222";
-            boardCtx.fillText(symbol, col * squareSize + squareSize/2, row * squareSize + squareSize/2);
-          }
-        }
-      }
-      // Highlight the selected square.
-      if (selectedSquare) {
-        boardCtx.fillStyle = "rgba(255,255,255,0.4)";
-        boardCtx.fillRect(selectedSquare.col * squareSize, selectedSquare.row * squareSize, squareSize, squareSize);
+      // Recursively draw the web from each point.
+      for (let i = 0; i < numPoints; i++) {
+        drawFractalWeb(ctx, points[i].x, points[i].y, radius * 0.5, depth - 1, angleOffset + currentConfig.fractal.angleSpeed);
       }
     }
 
-    /**************** Utility Functions ****************/
-    function inBounds(row, col) {
-      return row >= 0 && row < 8 && col >= 0 && col < 8;
-    }
-    function isPathClear(fromRow, fromCol, toRow, toCol) {
-      let dr = toRow - fromRow, dc = toCol - fromCol;
-      let steps = Math.max(Math.abs(dr), Math.abs(dc));
-      let stepR = dr / steps, stepC = dc / steps;
-      for (let i = 1; i < steps; i++) {
-        let rr = fromRow + i * stepR;
-        let cc = fromCol + i * stepC;
-        if (board[Math.round(rr)][Math.round(cc)] !== null) return false;
-      }
-      return true;
-    }
-    function isPathClearForBoard(b, fromRow, fromCol, toRow, toCol) {
-      let dr = toRow - fromRow, dc = toCol - fromCol;
-      let steps = Math.max(Math.abs(dr), Math.abs(dc));
-      let stepR = dr / steps, stepC = dc / steps;
-      for (let i = 1; i < steps; i++) {
-        let rr = fromRow + i * stepR;
-        let cc = fromCol + i * stepC;
-        if (b[Math.round(rr)][Math.round(cc)] !== null) return false;
-      }
-      return true;
-    }
-    function cloneBoard(orig) {
-      let newBoard = [];
-      for (let r = 0; r < 8; r++) {
-        newBoard[r] = [];
-        for (let c = 0; c < 8; c++) {
-          let piece = orig[r][c];
-          newBoard[r][c] = piece ? { ...piece } : null;
-        }
-      }
-      return newBoard;
-    }
-    // Returns true if the square (row, col) can be attacked by an opponent.
-    function canSquareBeAttacked(color, row, col) {
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          let piece = board[r][c];
-          if (piece && piece.color !== color) {
-            if (canPieceAttack(r, c, row, col)) return true;
-          }
-        }
-      }
-      return false;
-    }
+    /***********************
+     * Animation Loop
+     ***********************/
+    let time = 0;
+    function animate() {
+      time += 0.002; // Evolve very slowly
 
-    /**************** Move Validation & King Safety ****************/
-    function validateMove(fromRow, fromCol, toRow, toCol) {
-      if (!inBounds(fromRow, fromCol) || !inBounds(toRow, toCol)) return false;
-      let piece = board[fromRow][fromCol];
-      if (!piece || piece.color !== currentTurn) return false;
-      let target = board[toRow][toCol];
-      if (target && target.color === piece.color) return false;
-      let dr = toRow - fromRow, dc = toCol - fromCol;
-      let absDr = Math.abs(dr), absDc = Math.abs(dc);
-      
-      switch(piece.type) {
-        case "P": {
-          let forward = (piece.color === "white") ? -1 : 1;
-          let startRow = (piece.color === "white") ? 6 : 1;
-          // One-step forward.
-          if (dc === 0 && dr === forward && !target) return true;
-          // Two-step from starting row.
-          if (dc === 0 && dr === 2 * forward && fromRow === startRow &&
-              !target && !board[fromRow + forward][fromCol]) return true;
-          // Diagonal capture (or en passant).
-          if (absDc === 1 && dr === forward) {
-            if (target && target.color !== piece.color) return true;
-            if (!target && enPassantSquare && enPassantSquare.row === toRow && enPassantSquare.col === toCol)
-              return true;
-          }
-          return false;
-        }
-        case "N":
-          return (absDr === 2 && absDc === 1) || (absDr === 1 && absDc === 2);
-        case "B":
-          return (absDr === absDc && isPathClear(fromRow, fromCol, toRow, toCol));
-        case "R":
-          return ((dr === 0 || dc === 0) && isPathClear(fromRow, fromCol, toRow, toCol));
-        case "Q":
-          return (((absDr === absDc) || (dr === 0 || dc === 0)) && isPathClear(fromRow, fromCol, toRow, toCol));
-        case "K":
-          // One-square move.
-          if (absDr <= 1 && absDc <= 1) return true;
-          // Castling (two-square horizontal move).
-          if (dr === 0 && absDc === 2) {
-            if (isKingInCheck(currentTurn)) return false;
-            let step = (dc > 0) ? 1 : -1;
-            if (canSquareBeAttacked(currentTurn, fromRow, fromCol + step)) return false;
-            if (canSquareBeAttacked(currentTurn, toRow, toCol)) return false;
-            if (dc === 2 && board[fromRow][7] && board[fromRow][7].type === "R" &&
-                !board[fromRow][7].hasMoved && !board[fromRow][5] && !board[fromRow][6])
-              return true;
-            if (dc === -2 && board[fromRow][0] && board[fromRow][0].type === "R" &&
-                !board[fromRow][0].hasMoved && !board[fromRow][1] && !board[fromRow][2] && !board[fromRow][3])
-              return true;
-          }
-          return false;
-        default:
-          return false;
-      }
-    }
-    function isKingInCheck(color, b = board) {
-      let kingPos = null;
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          let piece = b[r][c];
-          if (piece && piece.type === "K" && piece.color === color) {
-            kingPos = { row: r, col: c };
-            break;
-          }
-        }
-        if (kingPos) break;
-      }
-      if (!kingPos) return false;
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          let piece = b[r][c];
-          if (piece && piece.color !== color) {
-            if (canPieceAttack(r, c, kingPos.row, kingPos.col, b)) return true;
-          }
-        }
-      }
-      return false;
-    }
-    function canPieceAttack(fromRow, fromCol, toRow, toCol, b = board) {
-      let piece = b[fromRow][fromCol];
-      if (!piece) return false;
-      let dr = toRow - fromRow, dc = toCol - fromCol;
-      let absDr = Math.abs(dr), absDc = Math.abs(dc);
-      switch(piece.type) {
-        case "P": {
-          let forward = (piece.color === "white") ? -1 : 1;
-          return (dr === forward && Math.abs(dc) === 1);
-        }
-        case "N":
-          return (absDr === 2 && absDc === 1) || (absDr === 1 && absDc === 2);
-        case "B":
-          return (absDr === absDc && isPathClearForBoard(b, fromRow, fromCol, toRow, toCol));
-        case "R":
-          return ((dr === 0 || dc === 0) && isPathClearForBoard(b, fromRow, fromCol, toRow, toCol));
-        case "Q":
-          return (((absDr === absDc) || (dr === 0 || dc === 0)) && isPathClearForBoard(b, fromRow, fromCol, toRow, toCol));
-        case "K":
-          return (absDr <= 1 && absDc <= 1);
-        default:
-          return false;
-      }
-    }
-    // Returns true if there is at least one legal move for the given color.
-    function hasAnyLegalMove(color) {
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          let piece = board[r][c];
-          if (piece && piece.color === color) {
-            for (let nr = 0; nr < 8; nr++) {
-              for (let nc = 0; nc < 8; nc++) {
-                let tempBoard = cloneBoard(board);
-                if (validateMove(r, c, nr, nc)) {
-                  simulateMove(tempBoard, r, c, nr, nc);
-                  if (!isKingInCheck(color, tempBoard)) return true;
-                }
-              }
-            }
-          }
-        }
-      }
-      return false;
-    }
-    // Check for game over: either checkmate or stalemate.
-    function checkGameOver() {
-      if (!hasAnyLegalMove(currentTurn)) {
-        if (isKingInCheck(currentTurn))
-          setTimeout(() => alert("Checkmate! " + (currentTurn === "white" ? "Black" : "White") + " wins."), 50);
-        else
-          setTimeout(() => alert("Stalemate! Game drawn."), 50);
-        initBoard();
-        drawBoard();
-      }
-    }
-    // Simulate a move on a board copy (used for safety checking).
-    function simulateMove(b, fromRow, fromCol, toRow, toCol) {
-      let piece = b[fromRow][fromCol];
-      if (!piece) return false;
-      if (piece.type === "P" && Math.abs(toCol - fromCol) === 1 && !b[toRow][toCol]) {
-        let captureRow = (piece.color === "white") ? toRow + 1 : toRow - 1;
-        b[captureRow][toCol] = null;
-      }
-      if (piece.type === "K" && Math.abs(toCol - fromCol) === 2) {
-        if (toCol - fromCol === 2) {
-          b[fromRow][5] = b[fromRow][7];
-          b[fromRow][7] = null;
-          if (b[fromRow][5]) b[fromRow][5].hasMoved = true;
-        } else if (toCol - fromCol === -2) {
-          b[fromRow][3] = b[fromRow][0];
-          b[fromRow][0] = null;
-          if (b[fromRow][3]) b[fromRow][3].hasMoved = true;
-        }
-      }
-      b[toRow][toCol] = piece;
-      b[fromRow][fromCol] = null;
-      piece.hasMoved = true;
-      if (piece.type === "P") {
-        if ((piece.color === "white" && toRow === 0) || (piece.color === "black" && toRow === 7))
-          piece.type = "Q";
-      }
-      return true;
-    }
+      // --- Particle Trails ---
+      // Draw a translucent overlay to slowly fade previous particle positions.
+      particleCtx.fillStyle = "rgba(16, 16, 16, 0.05)";
+      particleCtx.fillRect(0, 0, particleCanvas.width, particleCanvas.height);
+      particles.forEach(particle => {
+        particle.update();
+        particle.draw(particleCtx);
+      });
 
-    /**************** Particle System ****************/
-    // Helper: get the board container's bounding rectangle.
-    function getBoardRect() {
-      return document.getElementById("boardContainer").getBoundingClientRect();
-    }
-    // Spawn a generic particle.
-    function spawnParticle(x, y, vx, vy, size, color, captured = false, extra = {}) {
-      particles.push({ x, y, vx, vy, size, color, captured, ...extra });
-    }
-    // Spawn an explosion of particles (for piece placement) only if outside the board.
-    function spawnExplosionParticles(x, y) {
-      let boardRect = getBoardRect();
-      // Only spawn if the point is outside the board.
-      if (x >= boardRect.left && x <= boardRect.right && y >= boardRect.top && y <= boardRect.bottom) {
-        return;
-      }
-      for (let i = 0; i < 20; i++) {
-        let angle = Math.random() * Math.PI * 2;
-        let speed = Math.random() * 2 + 1;
-        let vx = Math.cos(angle) * speed;
-        let vy = Math.sin(angle) * speed;
-        let size = Math.random() * 3 + 2;
-        spawnParticle(x, y, vx, vy, size, "#fff");
-      }
-    }
-    // Spawn a particle for a captured piece (always spawn).
-    function spawnCapturedPiece(piece, x, y) {
-      let centerX = window.innerWidth / 2;
-      let centerY = window.innerHeight / 2;
-      let dx = x - centerX, dy = y - centerY;
-      let mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag === 0) { dx = 1; dy = 0; mag = 1; }
-      let speed = Math.random() * 1.5 + 1;
-      let vx = dx / mag * speed;
-      let vy = dy / mag * speed;
-      let size = 30;
-      let symbol = pieceSymbols[piece.color][piece.type];
-      spawnParticle(x, y, vx, vy, size, (piece.color === "white") ? "#fff" : "#222", true, { symbol: symbol, font: "bold 52px Arial" });
-    }
-    // Update particle positions.
-    function updateParticles() {
-      for (let p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-      }
-    }
-    // Draw particles. For background particles, only draw if they are outside the board.
-    function drawParticles() {
-      // Clear the particle canvas with a slight fade to create trails.
-      particlesCtx.fillStyle = "rgba(0, 0, 0, 0.02)";
-      particlesCtx.fillRect(0, 0, particlesCanvas.width, particlesCanvas.height);
-      let boardRect = getBoardRect();
-      for (let p of particles) {
-        // For non-captured particles, skip drawing if inside the board.
-        if (!p.captured) {
-          if (p.x >= boardRect.left && p.x <= boardRect.right &&
-              p.y >= boardRect.top && p.y <= boardRect.bottom) {
-            continue;
-          }
-        }
-        if (p.captured) {
-          particlesCtx.font = p.font;
-          particlesCtx.textAlign = "center";
-          particlesCtx.textBaseline = "middle";
-          particlesCtx.fillStyle = p.color;
-          particlesCtx.fillText(p.symbol, p.x, p.y);
-        } else {
-          particlesCtx.fillStyle = p.color;
-          particlesCtx.beginPath();
-          particlesCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          particlesCtx.fill();
-        }
-      }
-    }
-    function animateParticles() {
-      spawnOutlineParticle();
-      updateParticles();
-      drawParticles();
-      requestAnimationFrame(animateParticles);
-    }
-    // Spawn a particle along the board's outline (only outside the board).
-    function spawnOutlineParticle() {
-      if (Math.random() < 0.05) {
-        let boardRect = getBoardRect();
-        let edge = Math.floor(Math.random() * 4);
-        let x, y, vx = 0, vy = 0;
-        switch(edge) {
-          case 0: // Top edge.
-            x = Math.random() * (boardRect.right - boardRect.left) + boardRect.left;
-            y = boardRect.top;
-            vy = - (Math.random() * 1 + 1);
-            break;
-          case 1: // Right edge.
-            x = boardRect.right;
-            y = Math.random() * (boardRect.bottom - boardRect.top) + boardRect.top;
-            vx = Math.random() * 1 + 1;
-            break;
-          case 2: // Bottom edge.
-            x = Math.random() * (boardRect.right - boardRect.left) + boardRect.left;
-            y = boardRect.bottom;
-            vy = Math.random() * 1 + 1;
-            break;
-          case 3: // Left edge.
-            x = boardRect.left;
-            y = Math.random() * (boardRect.bottom - boardRect.top) + boardRect.top;
-            vx = - (Math.random() * 1 + 1);
-            break;
-        }
-        spawnParticle(x, y, vx, vy, Math.random() * 2 + 1, "#fff");
-      }
-    }
-    function animateBackground() {
-      let now = Date.now();
-      let hue = ((now / 50) + (moveCount * 10)) % 360;
-      bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-      let centerX = bgCanvas.width / 2;
-      let centerY = bgCanvas.height / 2;
-      let radius = Math.max(bgCanvas.width, bgCanvas.height) / 2;
-      let gradient = bgCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-      gradient.addColorStop(0, `hsl(${hue}, 50%, 20%)`);
-      gradient.addColorStop(1, `hsl(${(hue + 60) % 360}, 50%, 10%)`);
-      bgCtx.fillStyle = gradient;
-      bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
-      requestAnimationFrame(animateBackground);
-    }
-    animateBackground();
-    animateParticles();
+      // --- Fractal Web ---
+      // Clear and redraw the fractal web.
+      webCtx.clearRect(0, 0, webCanvas.width, webCanvas.height);
+      const centerX = webCanvas.width / 2;
+      const centerY = webCanvas.height / 2;
+      const initialRadius = Math.min(webCanvas.width, webCanvas.height) * currentConfig.fractal.initialRadiusFactor;
+      const depth = currentConfig.fractal.depth;
+      const angleOffset = time;
+      drawFractalWeb(webCtx, centerX, centerY, initialRadius, depth, angleOffset);
 
-    /**************** Making a Move ****************/
-    function movePiece(fromRow, fromCol, toRow, toCol) {
-      if (!validateMove(fromRow, fromCol, toRow, toCol)) return false;
-      let tempBoard = cloneBoard(board);
-      simulateMove(tempBoard, fromRow, fromCol, toRow, toCol);
-      if (isKingInCheck(currentTurn, tempBoard)) return false;
-      
-      let movingPiece = board[fromRow][fromCol];
-      
-      // Determine if a capture is occurring.
-      let captured = null;
-      let capturedPos = null;
-      if (movingPiece.type === "P" && Math.abs(toCol - fromCol) === 1 && !board[toRow][toCol]) {
-        if (enPassantSquare && enPassantSquare.row === toRow && enPassantSquare.col === toCol) {
-          let captureRow = (movingPiece.color === "white") ? toRow + 1 : toRow - 1;
-          captured = board[captureRow][toCol];
-          capturedPos = { x: toCol * squareSize + squareSize/2, y: captureRow * squareSize + squareSize/2 };
-          board[captureRow][toCol] = null;
-        }
-      } else {
-        captured = board[toRow][toCol];
-        if (captured)
-          capturedPos = { x: toCol * squareSize + squareSize/2, y: toRow * squareSize + squareSize/2 };
-      }
-      if (captured) {
-        spawnCapturedPiece(captured, capturedPos.x, capturedPos.y);
-      }
-      
-      // Handle castling.
-      if (movingPiece.type === "K" && Math.abs(toCol - fromCol) === 2) {
-        if (toCol - fromCol === 2) {
-          board[fromRow][5] = board[fromRow][7];
-          board[fromRow][7] = null;
-          if (board[fromRow][5]) board[fromRow][5].hasMoved = true;
-        } else if (toCol - fromCol === -2) {
-          board[fromRow][3] = board[fromRow][0];
-          board[fromRow][0] = null;
-          if (board[fromRow][3]) board[fromRow][3].hasMoved = true;
-        }
-      }
-      
-      board[toRow][toCol] = movingPiece;
-      board[fromRow][fromCol] = null;
-      movingPiece.hasMoved = true;
-      if (movingPiece.type === "P") {
-        if ((movingPiece.color === "white" && toRow === 0) || (movingPiece.color === "black" && toRow === 7))
-          movingPiece.type = "Q";
-        if (Math.abs(toRow - fromRow) === 2) {
-          enPassantSquare = { row: fromRow + ((toRow - fromRow) / 2), col: fromCol };
-        } else {
-          enPassantSquare = null;
-        }
-      } else {
-        enPassantSquare = null;
-      }
-      currentTurn = (currentTurn === "white") ? "black" : "white";
-      turnIndicator.textContent = currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1);
-      moveCount++;
-      
-      // Only spawn explosion particles if the destination is outside the board.
-      let boardRect = getBoardRect();
-      let destX = toCol * squareSize + squareSize/2;
-      let destY = toRow * squareSize + squareSize/2;
-      // Convert board local coordinates to viewport coordinates.
-      let boardContainer = document.getElementById("boardContainer").getBoundingClientRect();
-      let destViewportX = boardContainer.left + destX;
-      let destViewportY = boardContainer.top + destY;
-      if (!(destViewportX >= boardRect.left && destViewportX <= boardRect.right &&
-            destViewportY >= boardRect.top && destViewportY <= boardRect.bottom)) {
-        spawnExplosionParticles(destViewportX, destViewportY);
-      }
-      
-      drawBoard();
-      checkGameOver();
-      return true;
+      requestAnimationFrame(animate);
     }
-
-    /**************** User Interaction ****************/
-    boardCanvas.addEventListener("click", function(evt) {
-      const rect = boardCanvas.getBoundingClientRect();
-      const x = evt.clientX - rect.left;
-      const y = evt.clientY - rect.top;
-      const col = Math.floor(x / squareSize);
-      const row = Math.floor(y / squareSize);
-      
-      if (!selectedSquare) {
-        let piece = board[row][col];
-        if (piece && piece.color === currentTurn) {
-          selectedSquare = { row, col };
-          drawBoard();
-        }
-      } else {
-        if (movePiece(selectedSquare.row, selectedSquare.col, row, col)) {
-          // Move successful.
-        }
-        selectedSquare = null;
-        drawBoard();
-      }
-    });
-
-    /**************** Color Picker UI ****************/
-    document.getElementById('setDarkColor').addEventListener('click', function() {
-      document.getElementById('darkColorPicker').click();
-    });
-    document.getElementById('darkColorPicker').addEventListener('input', function(e) {
-      darkSquare = e.target.value;
-      drawBoard();
-    });
-    document.getElementById('setLightColor').addEventListener('click', function() {
-      document.getElementById('lightColorPicker').click();
-    });
-    document.getElementById('lightColorPicker').addEventListener('input', function(e) {
-      lightSquare = e.target.value;
-      drawBoard();
-    });
-
-    /**************** Initialization ****************/
-    initBoard();
-    drawBoard();
+    animate();
   </script>
 </body>
 </html>
