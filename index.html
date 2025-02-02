@@ -3,18 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Journey of Steps: Evolving Fractal Web & Particle Trails</title>
+  <title>Cycling Fractal with Frozen Grey Phases</title>
   <style>
-    /* Basic reset and full-screen setup */
+    /* Basic full‑screen styling */
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
       background-color: #101010;
-      font-family: sans-serif;
-      color: #fff;
     }
-    /* Two canvases layered on top of each other */
     canvas {
       position: absolute;
       top: 0;
@@ -22,59 +19,27 @@
       width: 100%;
       height: 100%;
     }
-    #particleCanvas {
-      z-index: 1;
-    }
-    #webCanvas {
-      z-index: 2;
-      pointer-events: none;
-    }
-    /* Overlay content for journey steps */
-    #content {
-      position: absolute;
-      z-index: 3;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 20px 30px;
-      border-radius: 10px;
-      max-width: 80%;
-    }
-    #content h1 {
-      margin: 0 0 10px;
-      font-size: 2em;
-    }
-    #content p {
-      margin: 0 0 20px;
-      font-size: 1.2em;
-    }
-    #nextBtn {
-      padding: 10px 20px;
-      font-size: 1em;
-      cursor: pointer;
-      border: none;
-      border-radius: 5px;
-      background-color: #1e90ff;
-      color: #fff;
-    }
-    #nextBtn:hover {
-      background-color: #3aa0ff;
-    }
+    /* Layer order (lowest at the bottom):
+         1. particleCanvas: free‑moving white particles
+         2. frozenCanvas: frozen (grey) fractals from past cycles
+         3. webCanvas: current fractal (drawn in its active color, or desaturated at step 4)
+         4. frozenParticlesCanvas: frozen (desaturated) rider dots from past cycles
+         5. fractalParticleCanvas: current cycle’s rider dots
+    */
+    #particleCanvas { z-index: 1; }
+    #frozenCanvas { z-index: 2; pointer-events: none; }
+    #webCanvas { z-index: 3; pointer-events: none; }
+    #frozenParticlesCanvas { z-index: 4; pointer-events: none; }
+    #fractalParticleCanvas { z-index: 5; pointer-events: none; }
   </style>
 </head>
 <body>
-  <!-- Canvas for particle trails -->
+  <!-- Five canvases for the layers -->
   <canvas id="particleCanvas"></canvas>
-  <!-- Canvas for the fractal web -->
+  <canvas id="frozenCanvas"></canvas>
   <canvas id="webCanvas"></canvas>
-  <!-- Overlay content for the journey steps -->
-  <div id="content">
-    <h1 id="stepTitle"></h1>
-    <p id="stepDescription"></p>
-    <button id="nextBtn">Next Step</button>
-  </div>
+  <canvas id="frozenParticlesCanvas"></canvas>
+  <canvas id="fractalParticleCanvas"></canvas>
 
   <script>
     /***********************
@@ -82,71 +47,75 @@
      ***********************/
     const particleCanvas = document.getElementById('particleCanvas');
     const particleCtx = particleCanvas.getContext('2d');
+    const frozenCanvas = document.getElementById('frozenCanvas');
+    const frozenCtx = frozenCanvas.getContext('2d');
     const webCanvas = document.getElementById('webCanvas');
     const webCtx = webCanvas.getContext('2d');
+    const frozenParticlesCanvas = document.getElementById('frozenParticlesCanvas');
+    const frozenParticlesCtx = frozenParticlesCanvas.getContext('2d');
+    const fractalParticleCanvas = document.getElementById('fractalParticleCanvas');
+    const fractalParticleCtx = fractalParticleCanvas.getContext('2d');
 
     function resizeCanvases() {
-      particleCanvas.width = window.innerWidth;
-      particleCanvas.height = window.innerHeight;
-      webCanvas.width = window.innerWidth;
-      webCanvas.height = window.innerHeight;
+      const canvases = [particleCanvas, frozenCanvas, webCanvas, frozenParticlesCanvas, fractalParticleCanvas];
+      canvases.forEach(canvas => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      });
     }
     window.addEventListener('resize', resizeCanvases);
     resizeCanvases();
 
     /***********************
-     * Step Configurations
+     * Global Cycle & Color Configuration
      ***********************/
-    // Each step has its own journey text and configuration parameters.
-    const steps = [
-      {
-        title: "Step 1: The Beginning",
-        description: "Embark on your journey. The fractal web and gentle particles mark the start of your path.",
-        fractal: { depth: 4, numPoints: 8, angleSpeed: 0.02, initialRadiusFactor: 0.45 },
-        particles: { speedMultiplier: 0.8, count: 60 }
-      },
-      {
-        title: "Step 2: The Journey",
-        description: "Progress along winding paths. The fractal web expands and particles pick up momentum.",
-        fractal: { depth: 5, numPoints: 8, angleSpeed: 0.01, initialRadiusFactor: 0.5 },
-        particles: { speedMultiplier: 1.0, count: 80 }
-      },
-      {
-        title: "Step 3: The Arrival",
-        description: "Arrive at your destination. The fractal web calms and particles drift softly, marking a serene end.",
-        fractal: { depth: 3, numPoints: 6, angleSpeed: 0.005, initialRadiusFactor: 0.4 },
-        particles: { speedMultiplier: 0.5, count: 40 }
-      }
-    ];
-    let currentStepIndex = 0;
-    let currentConfig = steps[currentStepIndex];
-
-    // Update the overlay content based on the current step.
-    const stepTitleEl = document.getElementById('stepTitle');
-    const stepDescriptionEl = document.getElementById('stepDescription');
-    function updateStepContent() {
-      stepTitleEl.textContent = currentConfig.title;
-      stepDescriptionEl.textContent = currentConfig.description;
+    // Each cycle lasts 4 clicks.
+    let currentCycle = 1;
+    let currentStep = 1;
+    const maxStep = 4;
+    // Every 5 cycles the frozen layers will fade (see animation loop below)
+    const fadeCycleInterval = 5;
+    // Choose a random hue (0–360) for the active cycle.
+    let currentHue = Math.floor(Math.random() * 360);
+    // A helper function: returns an HSLA string based on the active hue.
+    // For active (bright) fractals we use a high saturation (80%), 
+    // for grey (desaturated) ones we use lower saturation (20%).
+    function hslaColor(saturation, alpha) {
+      return `hsla(${currentHue}, ${saturation}%, 50%, ${alpha})`;
     }
-    updateStepContent();
-
-    // Handle "Next Step" button clicks.
-    document.getElementById('nextBtn').addEventListener('click', () => {
-      currentStepIndex = (currentStepIndex + 1) % steps.length;
-      currentConfig = steps[currentStepIndex];
-      updateStepContent();
-      // Reinitialize particles with the new configuration.
-      initParticles();
-    });
 
     /***********************
-     * Particle System (with Trails)
+     * Fractal Configuration
      ***********************/
+    // Within each cycle the fractal “grows” linearly:
+    // • numPoints starts at 3 and increases by 1 per click (so: 3,4,5,6)
+    // • depth starts at 1 and increases by 1 per click (so: 1,2,3,4)
+    // On the final step (step 4) the fractal is drawn in its desaturated form.
+    let currentConfig = {};
+    function updateConfig() {
+      const numPoints = Math.min(3 + (currentStep - 1), 12);
+      const depth = Math.min(1 + (currentStep - 1), 5);
+      // Use a faster rotation normally, but slow it when in the final (grey) step.
+      const angleSpeed = (currentStep === maxStep) ? 0.005 : 0.02;
+      currentConfig.fractal = {
+        numPoints: numPoints,
+        depth: depth,
+        angleSpeed: angleSpeed,
+        initialRadiusFactor: 0.45  // uses most of the canvas
+      };
+      // We consider the fractal to be in its "grey" (desaturated) phase only on the final step.
+      currentConfig.isGrey = (currentStep === maxStep);
+    }
+    updateConfig();
+
+    /***********************
+     * Free‑Moving Particles (White)
+     ***********************/
+    // These particles are created once and continue their independent motion.
     class Particle {
       constructor(x, y, speedMultiplier) {
         this.x = x;
         this.y = y;
-        // Slow, gentle velocities based on the speed multiplier.
         this.vx = (Math.random() - 0.5) * speedMultiplier;
         this.vy = (Math.random() - 0.5) * speedMultiplier;
         this.radius = Math.random() * 2 + 1;
@@ -154,7 +123,6 @@
       update() {
         this.x += this.vx;
         this.y += this.vy;
-        // Wrap around edges to keep particles always on screen.
         if (this.x < 0) this.x += particleCanvas.width;
         if (this.x > particleCanvas.width) this.x -= particleCanvas.width;
         if (this.y < 0) this.y += particleCanvas.height;
@@ -163,98 +131,202 @@
       draw(ctx) {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
         ctx.fill();
       }
     }
-
     let particles = [];
-    function initParticles() {
-      particles = [];
-      const count = currentConfig.particles.count;
-      for (let i = 0; i < count; i++) {
-        particles.push(new Particle(
-          Math.random() * particleCanvas.width,
-          Math.random() * particleCanvas.height,
-          currentConfig.particles.speedMultiplier
-        ));
-      }
+    const freeParticleCount = 80;
+    for (let i = 0; i < freeParticleCount; i++) {
+      particles.push(new Particle(Math.random() * particleCanvas.width,
+                                  Math.random() * particleCanvas.height, 0.8));
     }
-    initParticles();
 
     /***********************
-     * Fractal Web Drawing
+     * Fractal Web Drawing & Segment Collection
      ***********************/
-    /**
-     * Recursively draws an interweaving fractal web.
-     *
-     * @param {CanvasRenderingContext2D} ctx - The drawing context.
-     * @param {number} x - Center x-coordinate.
-     * @param {number} y - Center y-coordinate.
-     * @param {number} radius - Current radius.
-     * @param {number} depth - Recursion depth.
-     * @param {number} angleOffset - Rotation offset in radians.
-     */
-    function drawFractalWeb(ctx, x, y, radius, depth, angleOffset) {
+    // As the fractal is drawn, we collect every line segment into this array.
+    let fractalSegments = [];
+    function drawFractalWeb(ctx, x, y, radius, depth, angleOffset, collectSegments) {
       if (depth <= 0 || radius < 2) return;
       const numPoints = currentConfig.fractal.numPoints;
       const points = [];
-
-      // Compute points around a circle.
       for (let i = 0; i < numPoints; i++) {
         const angle = angleOffset + i * (2 * Math.PI / numPoints);
         const px = x + radius * Math.cos(angle);
         const py = y + radius * Math.sin(angle);
         points.push({ x: px, y: py });
       }
-
-      // Draw lines connecting every pair of points.
-      ctx.strokeStyle = `rgba(100, 180, 255, ${0.7 * depth / 4})`;
-      ctx.lineWidth = depth;
+      // Compute an alpha value for this recursion level.
+      const alpha = 0.7 * depth / currentConfig.fractal.depth;
+      // Choose stroke color: if in grey phase, use a low saturation (20%); otherwise high (80%).
+      const strokeColor = currentConfig.isGrey ? hslaColor(20, alpha) : hslaColor(80, alpha);
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = depth * 2;  // thicker lines for better visibility
       ctx.beginPath();
       for (let i = 0; i < numPoints; i++) {
         for (let j = i + 1; j < numPoints; j++) {
           ctx.moveTo(points[i].x, points[i].y);
           ctx.lineTo(points[j].x, points[j].y);
+          if (collectSegments) {
+            fractalSegments.push({
+              x1: points[i].x,
+              y1: points[i].y,
+              x2: points[j].x,
+              y2: points[j].y
+            });
+          }
         }
       }
       ctx.stroke();
-
-      // Recursively draw the web from each point.
+      // Recurse from each computed point.
       for (let i = 0; i < numPoints; i++) {
-        drawFractalWeb(ctx, points[i].x, points[i].y, radius * 0.5, depth - 1, angleOffset + currentConfig.fractal.angleSpeed);
+        drawFractalWeb(ctx, points[i].x, points[i].y, radius * 0.5, depth - 1,
+          angleOffset + currentConfig.fractal.angleSpeed, collectSegments);
       }
     }
+
+    /***********************
+     * Fractal‑Rider Particles (Dots)
+     ***********************/
+    // Each rider dot "rides" along one randomly chosen fractal segment.
+    // When created, each dot is tagged with the cycle in which it was born.
+    class FractalParticle {
+      constructor(cycle) {
+        this.cycle = cycle; // record the cycle number
+        this.segment = null;
+        this.progress = 0;
+        this.speed = 0.002 + Math.random() * 0.003;
+      }
+      update() {
+        if (!this.segment || this.progress >= 1) {
+          if (fractalSegments.length > 0) {
+            const index = Math.floor(Math.random() * fractalSegments.length);
+            this.segment = fractalSegments[index];
+          }
+          this.progress = 0;
+        }
+        this.progress += this.speed;
+      }
+      draw(ctx) {
+        if (!this.segment) return;
+        const { x1, y1, x2, y2 } = this.segment;
+        const x = x1 + (x2 - x1) * this.progress;
+        const y = y1 + (y2 - y1) * this.progress;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        // If the dot was created in an older cycle or if we're in the grey phase,
+        // draw it in a desaturated tone; otherwise in the active (bright) color.
+        const fillColor = (this.cycle < currentCycle || currentConfig.isGrey)
+                          ? hslaColor(20, 1.0) : hslaColor(80, 1.0);
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+      }
+    }
+    let fractalParticles = [];
+    function addFractalParticles(num) {
+      for (let i = 0; i < num; i++) {
+        fractalParticles.push(new FractalParticle(currentCycle));
+      }
+    }
+    // Start with one rider dot for the current cycle.
+    addFractalParticles(1);
 
     /***********************
      * Animation Loop
      ***********************/
     let time = 0;
     function animate() {
-      time += 0.002; // Evolve very slowly
+      time += 0.002;
 
-      // --- Particle Trails ---
-      // Draw a translucent overlay to slowly fade previous particle positions.
-      particleCtx.fillStyle = "rgba(16, 16, 16, 0.05)";
+      // --- Free‑Moving White Particles (particleCanvas) ---
+      particleCtx.fillStyle = "rgba(16,16,16,0.05)";
       particleCtx.fillRect(0, 0, particleCanvas.width, particleCanvas.height);
-      particles.forEach(particle => {
-        particle.update();
-        particle.draw(particleCtx);
+      particles.forEach(p => {
+        p.update();
+        p.draw(particleCtx);
       });
 
-      // --- Fractal Web ---
-      // Clear and redraw the fractal web.
+      // --- Current Fractal (webCanvas) ---
       webCtx.clearRect(0, 0, webCanvas.width, webCanvas.height);
+      // Reset segment collection for this frame.
+      fractalSegments = [];
       const centerX = webCanvas.width / 2;
       const centerY = webCanvas.height / 2;
-      const initialRadius = Math.min(webCanvas.width, webCanvas.height) * currentConfig.fractal.initialRadiusFactor;
-      const depth = currentConfig.fractal.depth;
-      const angleOffset = time;
-      drawFractalWeb(webCtx, centerX, centerY, initialRadius, depth, angleOffset);
+      const baseRadius = Math.min(webCanvas.width, webCanvas.height) * currentConfig.fractal.initialRadiusFactor;
+      const initialRadius = baseRadius * fractalZoom;
+      drawFractalWeb(webCtx, centerX, centerY, initialRadius, currentConfig.fractal.depth, time, true);
+
+      // --- Current Fractal‑Rider Dots (fractalParticleCanvas) ---
+      fractalParticleCtx.clearRect(0, 0, fractalParticleCanvas.width, fractalParticleCanvas.height);
+      fractalParticles.forEach(fp => {
+        fp.update();
+        fp.draw(fractalParticleCtx);
+      });
+
+      // --- Fade Frozen Layers Every 5 Cycles ---
+      if (currentCycle % fadeCycleInterval === 0) {
+        // Apply a slight dark overlay so that the frozen layers gradually fade.
+        frozenCtx.fillStyle = "rgba(16,16,16,0.005)";
+        frozenCtx.fillRect(0, 0, frozenCanvas.width, frozenCanvas.height);
+        frozenParticlesCtx.fillStyle = "rgba(16,16,16,0.005)";
+        frozenParticlesCtx.fillRect(0, 0, frozenParticlesCanvas.width, frozenParticlesCanvas.height);
+      }
 
       requestAnimationFrame(animate);
     }
     animate();
+
+    /***********************
+     * Cycle Transition on Click
+     ***********************/
+    // Each click advances the current step.
+    // – For steps 1–3, update the config and add a couple of new rider dots.
+    // – When currentStep exceeds maxStep (i.e. after step 4), "freeze" the current fractal
+    //   (copy the webCanvas to frozenCanvas and fractalParticleCanvas to frozenParticlesCanvas),
+    //   then start a new cycle:
+    //     • Reset currentStep to 1.
+    //     • Increment currentCycle.
+    //     • Choose a new random hue.
+    //     • Reset the current cycle’s rider dots.
+    function nextStep() {
+      currentStep++;
+      if (currentStep > maxStep) {
+        // Freeze the current (desaturated) fractal and its rider dots.
+        frozenCtx.drawImage(webCanvas, 0, 0);
+        frozenParticlesCtx.drawImage(fractalParticleCanvas, 0, 0);
+        // Clear the current fractal layers.
+        webCtx.clearRect(0, 0, webCanvas.width, webCanvas.height);
+        fractalParticleCtx.clearRect(0, 0, fractalParticleCanvas.width, fractalParticleCanvas.height);
+        // Start a new cycle.
+        currentStep = 1;
+        currentCycle++;
+        // Choose a new active hue.
+        currentHue = Math.floor(Math.random() * 360);
+        // Reset the current cycle’s rider dots.
+        fractalParticles = [];
+        addFractalParticles(1);
+      } else {
+        // Within the cycle (steps 1-3), add two new rider dots.
+        addFractalParticles(2);
+      }
+      updateConfig();
+    }
+    document.addEventListener('click', nextStep);
+
+    /***********************
+     * Zooming the Fractal via Mouse Wheel
+     ***********************/
+    // Scrolling (via the mouse wheel) adjusts the zoom factor for the fractal (affecting webCanvas only).
+    document.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        fractalZoom *= 1.1;
+      } else {
+        fractalZoom /= 1.1;
+      }
+      fractalZoom = Math.max(0.2, Math.min(5, fractalZoom));
+    }, { passive: false });
   </script>
 </body>
 </html>
