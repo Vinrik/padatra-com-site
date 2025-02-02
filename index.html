@@ -56,13 +56,23 @@
     const fractalParticleCanvas = document.getElementById('fractalParticleCanvas');
     const fractalParticleCtx = fractalParticleCanvas.getContext('2d');
 
-    function resizeCanvases() {
-      const canvases = [particleCanvas, frozenCanvas, webCanvas, frozenParticlesCanvas, fractalParticleCanvas];
-      canvases.forEach(canvas => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      });
-    }
+	function resizeCanvases() {
+	  const ratio = window.devicePixelRatio || 1;
+	  const canvases = [particleCanvas, frozenCanvas, webCanvas, frozenParticlesCanvas, fractalParticleCanvas];
+	  canvases.forEach(canvas => {
+	    // Set the canvas's internal resolution.
+	    canvas.width = window.innerWidth * ratio;
+	    canvas.height = window.innerHeight * ratio;
+	    // Set its displayed size via CSS.
+	    canvas.style.width = window.innerWidth + "px";
+	    canvas.style.height = window.innerHeight + "px";
+	    
+	    // Get the context and scale it.
+	    const ctx = canvas.getContext('2d');
+	    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+	  });
+	}
+
     window.addEventListener('resize', resizeCanvases);
     resizeCanvases();
 
